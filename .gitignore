@@ -1,0 +1,8 @@
+# Ignore Data Files
+*.csv
+*.nc
+*.h5
+
+# Ignore Python Cache
+__pycache__/
+.DS_Store
