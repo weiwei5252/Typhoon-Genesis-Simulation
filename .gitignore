@@ -1,5 +1,6 @@
 # Ignore Data Files
 *.csv
+!real_genesis_data.csv
 *.nc
 *.h5
 

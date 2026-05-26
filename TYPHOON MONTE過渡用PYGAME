@@ -1,0 +1,217 @@
+import pygame
+import numpy as np
+import sys
+
+pygame.init()
+WIDTH, HEIGHT = 1200, 750 # 稍微加高視窗以容納更多 UI
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("颱風生成蒙地卡羅模擬器：五變數進階版 (SST, Shear, Humid, Lat, Pres)")
+
+# 顏色定義
+BLACK = (20, 20, 25)
+WHITE = (240, 240, 240)
+GRAY = (100, 100, 100)
+DARK_GRAY = (40, 40, 50)
+BLUE = (60, 140, 255)   # 未成颱
+RED = (255, 60, 60)     # 成颱
+GREEN = (50, 220, 100)  # 輔助線與提示
+YELLOW = (255, 200, 50)
+
+try:
+    font_title = pygame.font.SysFont("Microsoft JhengHei", 28, bold=True)
+    font_md = pygame.font.SysFont("Microsoft JhengHei", 20)
+    font_sm = pygame.font.SysFont("Arial", 16)
+except:
+    font_title = pygame.font.Font(None, 36)
+    font_md = pygame.font.Font(None, 28)
+    font_sm = pygame.font.Font(None, 20)
+
+# ================= 2. 變數範圍與物理門檻 =================
+SST_MIN, SST_MAX = 25.0, 32.0
+SHEAR_MIN, SHEAR_MAX = 0.0, 30.0
+HUMID_MIN, HUMID_MAX = 50.0, 100.0
+LAT_MIN, LAT_MAX = 0.0, 40.0        # 緯度 (代表科氏力)
+PRES_MIN, PRES_MAX = 950.0, 1020.0  # 氣壓 (hPa)
+
+# 成颱門檻 (硬性物理限制)
+THRES_SST = 26.5
+THRES_SHEAR = 20.0
+THRES_HUMID = 70.0
+THRES_LAT = 5.0      # 緯度需大於 5 度才有足夠科氏力
+THRES_PRES = 1005.0  # 環境/初始氣壓需低於 1005 hPa
+
+# 雜訊標準差 (常態分佈的隨機偏差)
+STD_SST, STD_SHEAR, STD_HUMID = 0.6, 3.0, 5.0
+STD_LAT, STD_PRES = 2.0, 4.0
+
+# ================= 3. 資料庫設定 =================
+historical_db = {
+    pygame.K_1: {"year": 2001, "name": "納莉 (Nari)", "sst": 28.5, "shear": 12.0, "humid": 75.0, "lat": 22.0, "pres": 960.0},
+    pygame.K_2: {"year": 2003, "name": "梅米 (Maemi)", "sst": 29.5, "shear": 8.0, "humid": 78.0, "lat": 15.0, "pres": 910.0},
+    pygame.K_3: {"year": 2009, "name": "莫拉克 (Morakot)", "sst": 29.0, "shear": 15.0, "humid": 80.0, "lat": 23.0, "pres": 955.0},
+    pygame.K_4: {"year": 2013, "name": "海燕 (Haiyan)", "sst": 29.8, "shear": 6.0, "humid": 76.0, "lat": 7.0, "pres": 895.0},
+    pygame.K_5: {"year": 2015, "name": "蘇迪勒 (Soudelor)", "sst": 29.2, "shear": 10.0, "humid": 74.0, "lat": 14.0, "pres": 900.0},
+    pygame.K_6: {"year": 2020, "name": "天鵝 (Goni)", "sst": 29.4, "shear": 8.0, "humid": 73.0, "lat": 16.0, "pres": 905.0},
+    pygame.K_7: {"year": 2024, "name": "凱米 (Gaemi)", "sst": 28.8, "shear": 10.0, "humid": 79.0, "lat": 16.5, "pres": 940.0}
+}
+
+# 初始狀態
+sim_state = {"sst": 27.5, "shear": 15.0, "humid": 75.0, "lat": 15.0, "pres": 1000.0}
+hist_key = pygame.K_7 # 預設顯示凱米
+
+# 暫存運算結果
+points_sim, points_hist = [], []
+prob_sim, prob_hist = 0.0, 0.0
+
+# ================= 4. 核心運算函數 =================
+def map_pixel(val, min_val, max_val, min_px, max_px):
+    """將數值轉換為螢幕上的像素座標"""
+    return int((val - min_val) / (max_val - min_val) * (max_px - min_px) + min_px)
+
+def run_simulation(mean_sst, mean_shear, mean_humid, mean_lat, mean_pres, n=10000):
+    """執行 10000 次蒙地卡羅抽樣，加入緯度與氣壓判斷"""
+    points = []
+    formed_count = 0
+    
+    # 使用 numpy 向量化運算加速
+    s_arr = np.clip(np.random.normal(mean_sst, STD_SST, n), SST_MIN, SST_MAX)
+    sh_arr = np.clip(np.random.normal(mean_shear, STD_SHEAR, n), SHEAR_MIN, SHEAR_MAX)
+    h_arr = np.clip(np.random.normal(mean_humid, STD_HUMID, n), HUMID_MIN, HUMID_MAX)
+    lat_arr = np.clip(np.random.normal(mean_lat, STD_LAT, n), LAT_MIN, LAT_MAX)
+    pres_arr = np.clip(np.random.normal(mean_pres, STD_PRES, n), PRES_MIN, PRES_MAX)
+    
+    for i in range(n):
+        # 嚴格的五變數物理門檻
+        is_formed = (s_arr[i] > THRES_SST) and (sh_arr[i] < THRES_SHEAR) and \
+                    (h_arr[i] > THRES_HUMID) and (lat_arr[i] > THRES_LAT) and \
+                    (pres_arr[i] < THRES_PRES)
+                    
+        if is_formed:
+            formed_count += 1
+            
+        points.append({"sst": s_arr[i], "shear": sh_arr[i], "formed": is_formed})
+        
+    return points, (formed_count / n) * 100
+
+def update_data():
+    global points_sim, prob_sim, points_hist, prob_hist
+    points_sim, prob_sim = run_simulation(sim_state["sst"], sim_state["shear"], sim_state["humid"], sim_state["lat"], sim_state["pres"])
+    
+    hd = historical_db[hist_key]
+    points_hist, prob_hist = run_simulation(hd["sst"], hd["shear"], hd["humid"], hd["lat"], hd["pres"])
+
+# 啟動時先算一次
+update_data()
+
+# ================= 5. 主迴圈 =================
+clock = pygame.time.Clock()
+running = True
+
+# 版面邊界與圖表區域設定
+UI_HEIGHT = 200 # 加高 UI 區域
+PLOT_TOP = UI_HEIGHT + 20
+PLOT_BOTTOM = HEIGHT - 40
+LEFT_MID = WIDTH // 2
+
+while running:
+    screen.fill(BLACK)
+    
+    need_update = False
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+            
+        elif event.type == pygame.KEYDOWN:
+            # 切換歷史資料 (1~7)
+            if event.key in historical_db:
+                hist_key = event.key
+                need_update = True
+                
+            # 手動調整左側參數 (WASD QE RF TG)
+            if event.key == pygame.K_d: sim_state["sst"] = min(SST_MAX, sim_state["sst"] + 0.5); need_update = True
+            if event.key == pygame.K_a: sim_state["sst"] = max(SST_MIN, sim_state["sst"] - 0.5); need_update = True
+            
+            if event.key == pygame.K_w: sim_state["shear"] = min(SHEAR_MAX, sim_state["shear"] + 1.0); need_update = True
+            if event.key == pygame.K_s: sim_state["shear"] = max(SHEAR_MIN, sim_state["shear"] - 1.0); need_update = True
+            
+            if event.key == pygame.K_e: sim_state["humid"] = min(HUMID_MAX, sim_state["humid"] + 2.0); need_update = True
+            if event.key == pygame.K_q: sim_state["humid"] = max(HUMID_MIN, sim_state["humid"] - 2.0); need_update = True
+            
+            if event.key == pygame.K_f: sim_state["lat"] = min(LAT_MAX, sim_state["lat"] + 1.0); need_update = True
+            if event.key == pygame.K_r: sim_state["lat"] = max(LAT_MIN, sim_state["lat"] - 1.0); need_update = True
+            
+            if event.key == pygame.K_g: sim_state["pres"] = min(PRES_MAX, sim_state["pres"] + 2.0); need_update = True
+            if event.key == pygame.K_t: sim_state["pres"] = max(PRES_MIN, sim_state["pres"] - 2.0); need_update = True
+            
+            if event.key == pygame.K_SPACE: need_update = True
+
+    if need_update:
+        update_data()
+
+    # ---------------- 繪製散佈圖 (SST vs Shear) ----------------
+    for p in points_sim:
+        x = map_pixel(p["sst"], SST_MIN, SST_MAX, 60, LEFT_MID - 40)
+        y = map_pixel(p["shear"], SHEAR_MIN, SHEAR_MAX, PLOT_BOTTOM, PLOT_TOP)
+        color = RED if p["formed"] else BLUE
+        pygame.draw.circle(screen, color, (x, y), 3)
+
+    for p in points_hist:
+        x = map_pixel(p["sst"], SST_MIN, SST_MAX, LEFT_MID + 40, WIDTH - 40)
+        y = map_pixel(p["shear"], SHEAR_MIN, SHEAR_MAX, PLOT_BOTTOM, PLOT_TOP)
+        color = RED if p["formed"] else BLUE
+        pygame.draw.circle(screen, color, (x, y), 3)
+
+    # ---------------- 繪製圖表框架與輔助線 ----------------
+    pygame.draw.line(screen, DARK_GRAY, (LEFT_MID, UI_HEIGHT), (LEFT_MID, HEIGHT), 2)
+    
+    for offset in [0, LEFT_MID]:
+        px_left = 40 + offset
+        px_right = (LEFT_MID - 20) + offset
+        pygame.draw.line(screen, GRAY, (px_left, PLOT_BOTTOM), (px_right, PLOT_BOTTOM), 2)
+        pygame.draw.line(screen, GRAY, (px_left + 20, PLOT_TOP), (px_left + 20, PLOT_BOTTOM), 2)
+        
+        sst_line_x = map_pixel(THRES_SST, SST_MIN, SST_MAX, px_left + 20, px_right)
+        shear_line_y = map_pixel(THRES_SHEAR, SHEAR_MIN, SHEAR_MAX, PLOT_BOTTOM, PLOT_TOP)
+        pygame.draw.line(screen, GREEN, (sst_line_x, PLOT_TOP), (sst_line_x, PLOT_BOTTOM), 1)
+        pygame.draw.line(screen, GREEN, (px_left + 20, shear_line_y), (px_right, shear_line_y), 1)
+
+        screen.blit(font_sm.render(f"{SST_MIN}°C", True, GRAY), (px_left + 15, PLOT_BOTTOM + 5))
+        screen.blit(font_sm.render(f"{SST_MAX}°C", True, GRAY), (px_right - 20, PLOT_BOTTOM + 5))
+        screen.blit(font_sm.render(f"{SHEAR_MIN}kt", True, GRAY), (px_left - 10, PLOT_BOTTOM - 10))
+        screen.blit(font_sm.render(f"{SHEAR_MAX}kt", True, GRAY), (px_left - 15, PLOT_TOP))
+
+    # ---------------- 上方 UI 資訊面板 (五變數) ----------------
+    pygame.draw.rect(screen, DARK_GRAY, (0, 0, WIDTH, UI_HEIGHT))
+    pygame.draw.line(screen, WHITE, (0, UI_HEIGHT), (WIDTH, UI_HEIGHT), 2)
+    
+    # [左側 UI] - 重新排版為兩欄
+    screen.blit(font_title.render("手動環境測試區 (Manual Test)", True, WHITE), (40, 15))
+    screen.blit(font_title.render(f"成颱機率: {prob_sim:.1f}%", True, RED), (350, 38))
+    
+    # 第一欄
+    screen.blit(font_md.render(f"[A/D] 海溫 (SST): {sim_state['sst']:.1f} °C", True, YELLOW), (40, 70))
+    screen.blit(font_md.render(f"[W/S] 風切 (Shear): {sim_state['shear']:.1f} kt", True, YELLOW), (40, 110))
+    screen.blit(font_md.render(f"[Q/E] 濕度 (Humid): {sim_state['humid']:.1f} %", True, YELLOW), (40, 150))
+    # 第二欄
+    screen.blit(font_md.render(f"[R/F] 緯度 (Lat): {sim_state['lat']:.1f} °N", True, YELLOW), (350, 70))
+    screen.blit(font_md.render(f"[T/G] 氣壓 (Pres): {sim_state['pres']:.1f} hPa", True, YELLOW), (350, 110))
+    screen.blit(font_sm.render(f"(Space) re-sample", True, GREEN), (350, 150))
+
+    # [右側 UI]
+    hd = historical_db[hist_key]
+    screen.blit(font_title.render(f"真實歷史回測: {hd['year']} {hd['name']}", True, WHITE), (LEFT_MID + 40, 15))
+    screen.blit(font_title.render(f"成颱機率: {prob_hist:.1f}%", True, RED), (LEFT_MID + 350, 38))
+    
+    screen.blit(font_md.render(f"海溫: {hd['sst']:.1f} °C", True, WHITE), (LEFT_MID + 40, 70))
+    screen.blit(font_md.render(f"風切: {hd['shear']:.1f} kt", True, WHITE), (LEFT_MID + 40, 110))
+    screen.blit(font_md.render(f"濕度: {hd['humid']:.1f} %", True, WHITE), (LEFT_MID + 40, 150))
+    
+    screen.blit(font_md.render(f"緯度: {hd['lat']:.1f} °N", True, WHITE), (LEFT_MID + 300, 70))
+    screen.blit(font_md.render(f"氣壓: {hd['pres']:.1f} hPa", True, WHITE), (LEFT_MID + 300, 110))
+    screen.blit(font_sm.render(f"press [1]~[7] switch historical", True, GREEN), (LEFT_MID + 300, 155))
+
+    pygame.display.flip()
+    clock.tick(60)
+
+pygame.quit()
+sys.exit()
