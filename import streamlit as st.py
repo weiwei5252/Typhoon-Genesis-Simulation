@@ -86,4 +86,4 @@ with col2:
         fig_hist = px.histogram(df_real, x="USA_WIND", nbins=50, title="真實：歷史颱風最大風速分佈 (kt)", color_discrete_sequence=['indianred'])
         st.plotly_chart(fig_hist, use_container_width=True)
     else:
-        st.warning("⚠️ 找不到 `ibtracs.WP.list.v04r01.csv`，請確認檔案是否放在同一資料夾！")g
+        st.warning("⚠️ 找不到 `ibtracs.WP.list.v04r01.csv`，請確認檔案是否放在同一資料夾！")
