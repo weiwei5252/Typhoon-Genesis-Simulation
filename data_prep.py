@@ -19,6 +19,7 @@ def extract_real_data():
     df_ib['LAT'] = pd.to_numeric(df_ib['LAT'], errors='coerce')
     df_ib['LON'] = pd.to_numeric(df_ib['LON'], errors='coerce')
     
+    # 放寬年份限制，抓取 2006 年以後的所有颱風軌跡
     df_storm = df_ib[(df_ib['SEASON'] >= 2006) & (df_ib['USA_WIND'] >= 34)]
     genesis_points = df_storm.groupby('SID').first().reset_index()
     print(f"Found {len(genesis_points)} real typhoon genesis points.")
@@ -33,12 +34,12 @@ def extract_real_data():
     results = []
     print("3. Fusing spatial-temporal data...")
     
+    # 經度轉換 (0~360度格式)
     genesis_points['LON_ERA5'] = np.where(genesis_points['LON'] < 0, genesis_points['LON'] + 360, genesis_points['LON'])
 
     error_count = 0
     for _, row in genesis_points.iterrows():
         try:
-            # 【破案關鍵 1】：將 time 改成 valid_time
             env = ds.sel(
                 valid_time=row['ISO_TIME'], 
                 latitude=row['LAT'], 
@@ -46,7 +47,6 @@ def extract_real_data():
                 method='nearest'
             )
             
-            # 【破案關鍵 2】：加入 np.nanmean 吸收 expver 帶來的陣列問題，強制轉為單一數字
             sst = np.nanmean(env['sst'].values) - 273.15
             u10 = np.nanmean(env['u10'].values)
             v10 = np.nanmean(env['v10'].values)
@@ -60,8 +60,9 @@ def extract_real_data():
             
             results.append({
                 'Name': row['NAME'],
-                'Year': row['SEASON'],
+                'Year': row['SEASON'], # 記錄年份
                 'Lat': row['LAT'],
+                'Lon': row['LON'],     # 記錄經度
                 'SST': float(sst),
                 'Shear': float(wind_shear),
                 'Humidity': float(rh),
@@ -73,10 +74,14 @@ def extract_real_data():
             continue 
 
     df_final = pd.DataFrame(results)
+    
+    # 🌟 防呆機制：清除所有帶有 NaN (缺失值) 的無效資料，保護 Streamlit 地圖不崩潰
+    df_final = df_final.dropna() 
+    
     df_final.to_csv('real_genesis_data.csv', index=False)
     print(f"Success! Data exported to 'real_genesis_data.csv' ({len(df_final)} records).")
     if error_count > 0:
-        print(f"⚠️ 有 {error_count} 筆資料因為超出你下載的網格邊界而跳過。")
+        print(f"⚠️ 有 {error_count} 筆資料因為超出網格邊界或含空值而跳過。")
 
 if __name__ == "__main__":
     extract_real_data()
