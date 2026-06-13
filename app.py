@@ -5,7 +5,7 @@ import plotly.express as px
 from sklearn.ensemble import RandomForestClassifier
 
 st.set_page_config(page_title="Typhoon Genesis Simulator", layout="wide")
-st.title("🌀 Typhoon Genesis Dynamics: Monte Carlo Simulation vs. ERA5 Observations")
+st.title(" Typhoon Genesis Dynamics: Monte Carlo Simulation vs. ERA5 Observations")
 
 # ================= 1. 狀態記憶與連動引擎 (UI 靈魂) =================
 default_vals = {'sst': 26.5, 'humid': 70.0, 'shear': 20.0, 'lat': 5.0, 'pres': 1005.0}
@@ -67,9 +67,9 @@ st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3093/3093390.png", widt
 st.sidebar.title("系統控制中心")
 
 # 🌟 新增：上帝開關 (Toggle)
-st.sidebar.markdown("### 🔬 實驗模式切換")
+st.sidebar.markdown("###  實驗模式切換")
 st.sidebar.toggle(
-    "🔗 啟用大氣變數連動 (Butterfly Effect)", 
+    "啟用大氣變數連動 (Butterfly Effect)", 
     value=True, 
     key="sync_enabled",
     help="開啟時，調整任一變數將依據歷史相關係數牽動其他變數（模擬真實氣候）。關閉時，可獨立測試單一變數影響（控制變因實驗）。"
@@ -299,7 +299,7 @@ with r2_c2:
 
 # ================= 4. 進階大氣物理與機器學習分析 =================
 st.markdown("---")
-st.title("🌟 進階大氣物理與機器學習分析")
+st.title("進階大氣物理與機器學習分析")
 
 tab1, tab2, tab3 = st.tabs(["📊 機器學習特徵權重", "🔗 大氣變數連鎖反應", "🌍 歷史颱風動態雲圖"])
 
