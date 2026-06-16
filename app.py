@@ -5,7 +5,7 @@ import plotly.express as px
 from sklearn.ensemble import RandomForestClassifier
 
 st.set_page_config(page_title="Typhoon Genesis Simulator", layout="wide")
-st.title(" Typhoon Genesis Dynamics: Monte Carlo Simulation vs. ERA5 Observations")
+st.title("🌀 Typhoon Genesis Dynamics: Monte Carlo Simulation vs. ERA5 Observations")
 
 # ================= 1. 狀態記憶與連動引擎 (UI 靈魂) =================
 default_vals = {'sst': 26.5, 'humid': 70.0, 'shear': 20.0, 'lat': 5.0, 'pres': 1005.0}
@@ -66,58 +66,59 @@ def sync_vars(changed_var, widget_type):
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3093/3093390.png", width=100)
 st.sidebar.title("系統控制中心")
 
-# 🌟 新增：上帝開關 (Toggle)
-st.sidebar.markdown("###  實驗模式切換")
+# 🌟 上帝開關 (Toggle)
+st.sidebar.markdown("### 實驗模式切換")
 st.sidebar.toggle(
-    "啟用大氣變數連動 (Butterfly Effect)", 
+    "🔗 啟用大氣變數連動 (Butterfly Effect)", 
     value=True, 
     key="sync_enabled",
-    help="開啟時，調整任一變數將依據歷史相關係數牽動其他變數（模擬真實氣候）。關閉時，可獨立測試單一變數影響（控制變因實驗）。"
+    help="【共變異物理引擎】開啟時，調整任一變數將依據 ERA5 歷史相關係數牽動其他變數（模擬真實氣候）。關閉時，可獨立測試單一變數影響（控制變因實驗）。"
 )
 st.sidebar.markdown("---")
-
+   
 with st.sidebar.expander("蒙地卡羅抽樣設定", expanded=True):
-    n_sims = st.slider("隨機生成環境樣本數", 100, 10000, 5000, step=100)
+    # 樣本數說明
+    n_sims = st.slider("隨機生成環境樣本數", 100, 10000, 5000, step=100,
+              help="決定蒙地卡羅模擬要生成多少個虛擬環境擾動。樣本數越大，散佈圖分佈越趨近真實大氣統計規律。")
 
 with st.sidebar.expander("熱力學門檻 (Thermodynamic)", expanded=True):
-    st.markdown("**最低海溫門檻 (°C)**")
     col1, col2 = st.columns([3, 2]) 
     with col1:
-        st.slider("SST Slider", 25.0, 35.0, key="sst_slider", on_change=sync_vars, args=('sst', 'slider'), label_visibility="collapsed")
+        st.slider("最低海溫門檻 (°C)", 25.0, 35.0, key="sst_slider", on_change=sync_vars, args=('sst', 'slider'),
+                  help="【熱力學發動機】現實中低於 26.5°C 極難成颱。本模型已針對低溫設定「一票否決」物理死線。調整此項將引發濕度與氣壓的連鎖反應。")
     with col2:
         st.number_input("SST Input", 25.0, 35.0, step=0.1, key="sst_input", on_change=sync_vars, args=('sst', 'input'), label_visibility="collapsed")
 
-    st.markdown("**最低相對濕度 (%)**")
     col1, col2 = st.columns([3, 2])
     with col1:
-        st.slider("Humid Slider", 40.0, 100.0, key="humid_slider", on_change=sync_vars, args=('humid', 'slider'), label_visibility="collapsed")
+        st.slider("最低相對濕度 (%)", 40.0, 100.0, key="humid_slider", on_change=sync_vars, args=('humid', 'slider'),
+                  help="中低層大氣水氣飽和度。過於乾燥會導致乾空氣逸入，破壞颱風對流結構。在真實數據中與氣壓呈現高度負相關 (-0.43)。")
     with col2:
         st.number_input("Humid Input", 40.0, 100.0, step=1.0, key="humid_input", on_change=sync_vars, args=('humid', 'input'), label_visibility="collapsed")
 
 with st.sidebar.expander("動力學門檻 (Kinematic)", expanded=True):
-    st.markdown("**最大垂直風切 (kt)**")
     col1, col2 = st.columns([3, 2])
     with col1:
-        st.slider("Shear Slider", 5.0, 30.0, key="shear_slider", on_change=sync_vars, args=('shear', 'slider'), label_visibility="collapsed")
+        st.slider("最大垂直風切 (kt)", 5.0, 30.0, key="shear_slider", on_change=sync_vars, args=('shear', 'slider'),
+                  help="【颱風最大殺手】高低空風速差異。過大會直接撕裂氣旋暖心結構。本模型對此變數極度敏感（機器學習權重佔比高達 44.5%）。")
     with col2:
         st.number_input("Shear Input", 5.0, 30.0, step=1.0, key="shear_input", on_change=sync_vars, args=('shear', 'input'), label_visibility="collapsed")
 
-    st.markdown("**最低生成緯度 (°N)**")
     col1, col2 = st.columns([3, 2])
     with col1:
-        st.slider("Lat Slider", 0.0, 30.0, key="lat_slider", on_change=sync_vars, args=('lat', 'slider'), label_visibility="collapsed")
+        st.slider("最低生成緯度 (°N)", 0.0, 30.0, key="lat_slider", on_change=sync_vars, args=('lat', 'slider'),
+                  help="科氏力來源與氣候區位。調整此數值，系統將自動模擬該緯度真實應有的海溫下降與風切增強（緯度越高，環境越惡劣）。")
     with col2:
         st.number_input("Lat Input", 0.0, 30.0, step=0.1, key="lat_input", on_change=sync_vars, args=('lat', 'input'), label_visibility="collapsed")
 
-    st.markdown("**最高海平面氣壓 (hPa)**")
     col1, col2 = st.columns([3, 2])
     with col1:
-        st.slider("Pres Slider", 980.0, 1030.0, key="pres_slider", on_change=sync_vars, args=('pres', 'slider'), label_visibility="collapsed")
+        st.slider("最高海平面氣壓 (hPa)", 980.0, 1030.0, key="pres_slider", on_change=sync_vars, args=('pres', 'slider'),
+                  help="反映熱帶擾動的初始強度。氣壓數值越低，代表中心對流越旺盛，越容易吸引周圍水氣輻合。")
     with col2:
         st.number_input("Pres Input", 980.0, 1030.0, step=1.0, key="pres_input", on_change=sync_vars, args=('pres', 'input'), label_visibility="collapsed")
 
 st.sidebar.markdown("---")
-
 # ================= 3. 核心機率引擎 =================
 # ================= 3. 核心機率引擎 =================
 # ================= 3. 核心機率引擎 =================
@@ -181,7 +182,7 @@ def get_data(n, t_s, t_sh, t_h, t_l, t_p):
     prob_pres = sigmoid(pres_arr, NATURE_PRES, k=0.5, reverse=True) # k 從 0.3 提升到 0.5
 
     # ==========================================
-    # 🌟 第一層：動態機器學習潛勢指數 (Dynamic ML GPI)
+    #  第一層：動態機器學習潛勢指數 (Dynamic ML GPI)
     # 取代原本寫死的權重，讓 Random Forest 直接對生成的虛擬環境打分數
     
     # 1. 建立輕量化訓練集 (真實觀測 = 1, 背景雜訊 = 0)
@@ -208,7 +209,7 @@ def get_data(n, t_s, t_sh, t_h, t_l, t_p):
         rf_core = RandomForestClassifier(n_estimators=30, random_state=42)
         rf_core.fit(X_train, y_train)
         
-        # 3. 把 10000 筆生成的虛擬環境，送進去給模型打分數！
+        # 3. 
         df_sim_pool = pd.DataFrame({
             'SST': s_arr, 'Shear': sh_arr, 'Humidity': h_arr, 
             'Pressure': pres_arr, 'Lat': lat_arr
@@ -218,13 +219,20 @@ def get_data(n, t_s, t_sh, t_h, t_l, t_p):
     else:
         gpi = np.zeros(n) # 防呆：如果沒資料就給 0
     # ==========================================
-    # 🛑 第三刀：收緊「一票否決」絕對物理界線 (Veto)
-    # 只要踩到這些真實物理死線，不管你其他條件多好，生成機率強制歸零！
-    veto_sst = s_arr >= 25.5        # 提高底線：低於 25.5 度絕對不生
-    veto_shear = sh_arr <= 22.0     # 收緊上限：大於 22 kt 絕對會被撕裂
-    veto_humid = h_arr >= 55.0      # 提高底線：相對濕度低於 55% 太乾不生
+    # ==========================================
+    # 🛑 第二層：柔性指數懲罰 (Soft Veto) - 貫徹「隨機性」核心精神
+    # 取消非黑即白的 0/1 死線。未達標的環境不再直接判死刑，
+    # 而是給予「指數級」的機率衰減，保留大自然極端異常的長尾機率。
     
+    # 海溫若低於 26.0，每低 1 度，存活率呈指數暴跌 (例如 25.0 度只剩 5% 存活加權)
+    veto_sst = np.where(s_arr >= 26.0, 1.0, np.exp(3.0 * (s_arr - 26.0))) 
     
+    # 風切若大於 22.0，每高 1 kt，存活率呈指數暴跌
+    veto_shear = np.where(sh_arr <= 22.0, 1.0, np.exp(-0.5 * (sh_arr - 22.0)))
+    
+    # 濕度若低於 55.0，每低 1%，存活率呈指數暴跌
+    veto_humid = np.where(h_arr >= 55.0, 1.0, np.exp(0.2 * (h_arr - 55.0)))
+    # ==========================================
     
     # 綜合生存機率 = 潛勢指數 * 否決遮罩 * 陸地遮罩 * 地形破壞率
     combined_prob = gpi * veto_sst * veto_shear * veto_humid * is_ocean * topo_survival
@@ -299,7 +307,7 @@ with r2_c2:
 
 # ================= 4. 進階大氣物理與機器學習分析 =================
 st.markdown("---")
-st.title("進階大氣物理與機器學習分析")
+st.title("🌟 進階大氣物理與機器學習分析")
 
 tab1, tab2, tab3 = st.tabs(["📊 機器學習特徵權重", "🔗 大氣變數連鎖反應", "🌍 歷史颱風動態雲圖"])
 
